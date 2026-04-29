@@ -11,9 +11,10 @@
   --shadow: 0 34px 90px rgba(0,0,0,.35);
 }
 * { box-sizing:border-box; }
-html, body { width:100%; height:100%; margin:0; overflow:hidden; background:#111; font-family:Inter, Segoe UI, Helvetica, Arial, sans-serif; color:var(--paper); }
-body { display:grid; place-items:center; }
-#stage { width:1920px; height:1080px; position:relative; transform-origin:center center; overflow:hidden; background:var(--charcoal); box-shadow:var(--shadow); }
+html, body { width:100%; height:100%; margin:0; background:#111; font-family:Inter, Segoe UI, Helvetica, Arial, sans-serif; color:var(--paper); }
+html { overflow:hidden; }
+body { overflow:hidden; min-height:100svh; touch-action:pan-y; }
+#stage { width:1920px; height:1080px; position:fixed; left:50%; top:50%; transform-origin:center center; overflow:hidden; background:var(--charcoal); box-shadow:var(--shadow); will-change:transform; }
 .slide { position:absolute; inset:0; width:1920px; height:1080px; padding:86px 104px; opacity:0; transform:translateX(38px) scale(.995); transition:opacity .48s ease, transform .48s ease; pointer-events:none; overflow:hidden; background:linear-gradient(135deg,#23272d 0%,#171a1f 100%); }
 .slide.active { opacity:1; transform:none; pointer-events:auto; }
 .slide::after { content:""; position:absolute; inset:auto 0 0 0; height:8px; background:linear-gradient(90deg,var(--indigo),var(--bondi)); opacity:.9; }
@@ -124,6 +125,19 @@ img { max-width:100%; display:block; }
 #notes strong { color:#7bdce9; display:block; margin-bottom:10px; }
 #hint { position:absolute; top:24px; left:24px; z-index:55; color:rgba(255,255,255,.56); font-size:18px; background:rgba(0,0,0,.25); padding:10px 13px; border-radius:999px; opacity:.0; transition:.25s; }
 #stage:hover #hint { opacity:1; }
+
+@media (max-width: 900px), (max-height: 520px) {
+  :root { --shadow: 0 18px 42px rgba(0,0,0,.42); }
+  #hint { display:none; }
+  #hud { left:10px; right:10px; bottom:10px; font-size:14px; gap:10px; }
+  #count { min-width:54px; }
+  #notes { position:fixed; left:12px; right:12px; top:12px; width:auto; max-height:72svh; padding:18px; }
+  #notes .note { font-size:18px; }
+}
+@supports (height: 100dvh) {
+  body { min-height:100dvh; }
+}
+
 @media print { body { overflow:visible; display:block; background:#fff; } #stage { transform:none !important; box-shadow:none; } .slide { position:relative; opacity:1; transform:none; page-break-after:always; } #hud,#hint,#notes { display:none !important; } }
 </style>
 </head>
@@ -338,10 +352,19 @@ const bar = document.querySelector('#bar i');
 const count = document.querySelector('#count');
 const notesBox = document.querySelector('#notes');
 let idx = 0;
+function viewportSize() {
+  const vv = window.visualViewport;
+  return {
+    w: vv?.width || window.innerWidth || document.documentElement.clientWidth,
+    h: vv?.height || window.innerHeight || document.documentElement.clientHeight
+  };
+}
 function fit() {
   const stage = document.getElementById('stage');
-  const scale = Math.min(window.innerWidth/1920, window.innerHeight/1080);
-  stage.style.transform = `scale(${scale})`;
+  const { w, h } = viewportSize();
+  const safePad = Math.min(w, h) < 700 ? 0.985 : 0.965;
+  const scale = Math.min(w / 1920, h / 1080) * safePad;
+  stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
 function show(i) {
   idx = Math.max(0, Math.min(slides.length-1, i));
@@ -367,6 +390,26 @@ document.addEventListener('click', e => {
   if (e.shiftKey || e.altKey) prev(); else next();
 });
 window.addEventListener('resize', fit);
+window.visualViewport?.addEventListener('resize', fit);
+window.visualViewport?.addEventListener('scroll', fit);
+
+let touchStartX = 0;
+let touchStartY = 0;
+document.addEventListener('touchstart', e => {
+  if (!e.touches?.length) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive:true });
+document.addEventListener('touchend', e => {
+  const t = e.changedTouches?.[0];
+  if (!t) return;
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+    dx < 0 ? next() : prev();
+  }
+}, { passive:true });
+
 fit(); show(0);
 </script>
 </body>
